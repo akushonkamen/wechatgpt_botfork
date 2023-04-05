@@ -1,220 +1,238 @@
-# 简介
+## 插件化初衷
 
-> ChatGPT近期以强大的对话和信息整合能力风靡全网，可以写代码、改论文、讲故事，几乎无所不能，这让人不禁有个大胆的想法，能否用他的对话模型把我们的微信打造成一个智能机器人，可以在与好友对话中给出意想不到的回应，而且再也不用担心女朋友影响我们 ~~打游戏~~ 工作了。
+之前未插件化的代码耦合程度高，如果要定制一些个性化功能（如流量控制、接入`NovelAI`画图平台等），需要了解代码主体，避免影响到其他的功能。多个功能同时存在时，无法调整功能的优先级顺序，功能配置项也非常混乱。
 
+此时插件化应声而出。
 
-基于ChatGPT的微信聊天机器人，通过 [ChatGPT](https://github.com/openai/openai-python) 接口生成对话内容，使用 [itchat](https://github.com/littlecodersh/ItChat) 实现微信消息的接收和自动回复。已实现的特性如下：
+**插件化**: 在保证主体功能是ChatGPT的前提下，我们推荐将主体功能外的功能利用插件的方式实现。
 
-- [x] **文本对话：** 接收私聊及群组中的微信消息，使用ChatGPT生成回复内容，完成自动回复
-- [x] **规则定制化：** 支持私聊中按指定规则触发自动回复，支持对群组设置自动回复白名单
-- [x] **多账号：** 支持多微信账号同时运行
-- [x] **图片生成：** 支持根据描述生成图片，并自动发送至个人聊天或群聊
-- [x] **上下文记忆**：支持多轮对话记忆，且为每个好友维护独立的上下会话
-- [x] **语音识别：** 支持接收和处理语音消息，通过文字或语音回复
-- [x] **插件化：** 支持个性化功能插件，提供角色扮演、文字冒险游戏等预设插件
+- [x] 可根据功能需要，下载不同插件。
+- [x] 插件开发成本低，仅需了解插件触发事件，并按照插件定义接口编写插件。
+- [x] 插件化能够自由开关和调整优先级。
+- [x] 每个插件可在插件文件夹内维护独立的配置文件，方便代码的测试和调试，可以在独立的仓库开发插件。
 
-> 快速部署:
->
->[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/qApznZ?referralCode=RC3znh)
+PS: 插件目前支持`itchat`和`wechaty`
 
-# 更新日志
+## 插件化实现
 
->**2023.03.25：** 支持插件化开发，目前已实现 多角色切换、文字冒险游戏、管理员指令、Stable Diffusion等插件，使用参考 [#578](https://github.com/zhayujie/chatgpt-on-wechat/issues/578)。(contributed by [@lanvent](https://github.com/lanvent) in [#565](https://github.com/zhayujie/chatgpt-on-wechat/pull/565))
+插件化实现是在收到消息到发送回复的各个步骤之间插入触发事件实现的。
 
->**2023.03.09：** 基于 `whisper API` 实现对微信语音消息的解析和回复，添加配置项 `"speech_recognition":true` 即可启用，使用参考 [#415](https://github.com/zhayujie/chatgpt-on-wechat/issues/415)。(contributed by [wanggang1987](https://github.com/wanggang1987) in [#385](https://github.com/zhayujie/chatgpt-on-wechat/pull/385))
+### 消息处理过程
 
->**2023.03.02：** 接入[ChatGPT API](https://platform.openai.com/docs/guides/chat) (gpt-3.5-turbo)，默认使用该模型进行对话，需升级openai依赖 (`pip3 install --upgrade openai`)。网络问题参考 [#351](https://github.com/zhayujie/chatgpt-on-wechat/issues/351)
+在了解插件触发事件前，首先需要了解程序收到消息到发送回复的整个过程。
 
->**2023.02.09：** 扫码登录存在封号风险，请谨慎使用，参考[#58](https://github.com/AutumnWhj/ChatGPT-wechat-bot/issues/158)
-
->**2023.02.05：** 在openai官方接口方案中 (GPT-3模型) 实现上下文对话
-
->**2022.12.18：** 支持根据描述生成图片并发送，openai版本需大于0.25.0
-
->**2022.12.17：** 原来的方案是从 [ChatGPT页面](https://chat.openai.com/chat) 获取session_token，使用 [revChatGPT](https://github.com/acheong08/ChatGPT) 直接访问web接口，但随着ChatGPT接入Cloudflare人机验证，这一方案难以在服务器顺利运行。 所以目前使用的方案是调用 OpenAI 官方提供的 [API](https://beta.openai.com/docs/api-reference/introduction)，回复质量上基本接近于ChatGPT的内容，劣势是暂不支持有上下文记忆的对话，优势是稳定性和响应速度较好。
-
-# 使用效果
-
-### 个人聊天
-
-![single-chat-sample.jpg](docs/images/single-chat-sample.jpg)
-
-### 群组聊天
-
-![group-chat-sample.jpg](docs/images/group-chat-sample.jpg)
-
-### 图片生成
-
-![group-chat-sample.jpg](docs/images/image-create-sample.jpg)
-
-
-# 快速开始
-
-## 准备
-
-### 1. OpenAI账号注册
-
-前往 [OpenAI注册页面](https://beta.openai.com/signup) 创建账号，参考这篇 [教程](https://www.pythonthree.com/register-openai-chatgpt/) 可以通过虚拟手机号来接收验证码。创建完账号则前往 [API管理页面](https://beta.openai.com/account/api-keys) 创建一个 API Key 并保存下来，后面需要在项目中配置这个key。
-
-> 项目中使用的对话模型是 davinci，计费方式是约每 750 字 (包含请求和回复) 消耗 $0.02，图片生成是每张消耗 $0.016，账号创建有免费的 $18 额度 (更新3.25: 最新注册的已经无免费额度了)，使用完可以更换邮箱重新注册。
-
-#### 1.1 ChapGPT service On Azure
-一种替换以上的方法是使用Azure推出的[ChatGPT service](https://azure.microsoft.com/en-in/products/cognitive-services/openai-service/)。它host在公有云Azure上，因此不需要VPN就可以直接访问。不过目前仍然处于preview阶段。新用户可以通过Try Azure for free来薅一段时间的羊毛
-
-
-### 2.运行环境
-
-支持 Linux、MacOS、Windows 系统（可在Linux服务器上长期运行)，同时需安装 `Python`。
-> 建议Python版本在 3.7.1~3.9.X 之间，推荐3.8版本，3.10及以上版本在 MacOS 可用，其他系统上不确定能否正常运行。
-
-**(1) 克隆项目代码：**
-
-```bash
-git clone https://github.com/zhayujie/chatgpt-on-wechat
-cd chatgpt-on-wechat/
+插件化版本中，消息处理过程可以分为4个步骤：
+```
+    1.收到消息 ---> 2.产生回复 ---> 3.包装回复 ---> 4.发送回复
 ```
 
-**(2) 安装核心依赖 (必选)：**
-> 能够使用`itchat`创建机器人，并具有文字交流功能所需的最小依赖集合。
-```bash
-pip3 install -r requirements.txt
+以下是它们的默认处理逻辑(太长不看，可跳过)：
+
+#### 1. 收到消息
+
+负责接收用户消息，根据用户的配置，判断本条消息是否触发机器人。如果触发，则会判断该消息的类型（声音、文本、画图命令等），将消息包装成如下的`Context`交付给下一个步骤。
+
+```python
+    class ContextType (Enum):
+        TEXT = 1         # 文本消息
+        VOICE = 2        # 音频消息
+        IMAGE_CREATE = 3 # 创建图片命令
+    class Context:
+        def __init__(self, type : ContextType = None , content = None,  kwargs = dict()):
+            self.type = type
+            self.content = content
+            self.kwargs = kwargs
+        def __getitem__(self, key):
+            return self.kwargs[key]
 ```
 
-**(3) 拓展依赖 (可选，建议安装)：**
+`Context`中除了存放消息类型和内容外,还存放了一些与会话相关的参数。
 
-```bash
-pip3 install -r requirements-optional.txt
-```
-> 如果某项依赖安装失败请注释掉对应的行再继续。
+例如，当收到用户私聊消息时，会存放以下的会话参数。
 
-其中`tiktoken`要求`python`版本在3.8以上，它用于精确计算会话使用的tokens数量，强烈建议安装。
-
-
-使用`google`或`baidu`语音识别需安装`ffmpeg`，
-
-默认的`openai`语音识别不需要安装`ffmpeg`。
-
-参考[#415](https://github.com/zhayujie/chatgpt-on-wechat/issues/415)
-
-使用`azure`语音功能需安装依赖（列在`requirements-optional.txt`内，但为便于`railway`部署已注释）:
-
-```bash
-pip3 install azure-cognitiveservices-speech
+```python
+    context.kwargs = {'isgroup': False, 'msg': msg, 'receiver': other_user_id, 'session_id': other_user_id}
 ```
 
-> 目前默认发布的镜像和`railway`部署，都基于`apline`，无法安装`azure`的依赖。若有需求请自行基于[`debian`](https://github.com/zhayujie/chatgpt-on-wechat/blob/master/docker/Dockerfile.debian.latest)打包。
-参考[文档](https://learn.microsoft.com/en-us/azure/cognitive-services/speech-service/quickstarts/setup-platform?pivots=programming-language-python&tabs=linux%2Cubuntu%2Cdotnet%2Cjre%2Cmaven%2Cnodejs%2Cmac%2Cpypi)
+- `isgroup`: `Context`是否是群聊消息。
+- `msg`: `itchat`中原始的消息对象。
+- `receiver`: 需要回复消息的对象ID。
+- `session_id`: 会话ID(一般是发送触发bot消息的用户ID，如果在群聊中并且`conf`里设置了`group_chat_in_one_session`，那么此处便是群聊ID)
 
-## 配置
+#### 2. 产生回复
 
-配置文件的模板在根目录的`config-template.json`中，需复制该模板创建最终生效的 `config.json` 文件：
+处理消息并产生回复。目前默认处理逻辑是根据`Context`的类型交付给对应的bot，并产生回复`Reply`。 如果本步骤没有产生任何回复，那么会跳过之后的所有步骤。
 
-```bash
-  cp config-template.json config.json
+```python
+    if context.type == ContextType.TEXT or context.type == ContextType.IMAGE_CREATE:
+        reply = super().build_reply_content(context.content, context) #文字跟画图交付给chatgpt
+    elif context.type == ContextType.VOICE: # 声音先进行语音转文字后，修改Context类型为文字后，再交付给chatgpt
+        msg = context['msg']
+        file_name = TmpDir().path() + context.content
+        msg.download(file_name)
+        reply = super().build_voice_to_text(file_name)
+        if reply.type != ReplyType.ERROR and reply.type != ReplyType.INFO:
+            context.content = reply.content # 语音转文字后，将文字内容作为新的context
+            context.type = ContextType.TEXT
+            reply = super().build_reply_content(context.content, context)
+            if reply.type == ReplyType.TEXT:
+                if conf().get('voice_reply_voice'):
+                    reply = super().build_text_to_voice(reply.content)
 ```
 
-然后在`config.json`中填入配置，以下是对默认配置的说明，可根据需要进行自定义修改：
-
-```bash
-# config.json文件内容示例
-{ 
-  "open_ai_api_key": "YOUR API KEY",                          # 填入上面创建的 OpenAI API KEY
-  "model": "gpt-3.5-turbo",                                   # 模型名称。当use_azure_chatgpt为true时，其名称为Azure上model deployment名称
-  "proxy": "127.0.0.1:7890",                                  # 代理客户端的ip和端口
-  "single_chat_prefix": ["bot", "@bot"],                      # 私聊时文本需要包含该前缀才能触发机器人回复
-  "single_chat_reply_prefix": "[bot] ",                       # 私聊时自动回复的前缀，用于区分真人
-  "group_chat_prefix": ["@bot"],                              # 群聊时包含该前缀则会触发机器人回复
-  "group_name_white_list": ["ChatGPT测试群", "ChatGPT测试群2"], # 开启自动回复的群名称列表
-  "group_chat_in_one_session": ["ChatGPT测试群"],              # 支持会话上下文共享的群名称       
-  "image_create_prefix": ["画", "看", "找"],                   # 开启图片回复的前缀
-  "conversation_max_tokens": 1000,                            # 支持上下文记忆的最多字符数
-  "speech_recognition": false,                                # 是否开启语音识别
-  "group_speech_recognition": false,                          # 是否开启群组语音识别
-  "use_azure_chatgpt": false,                                 # 是否使用Azure ChatGPT service代替openai ChatGPT service. 当设置为true时需要设置 open_ai_api_base，如 https://xxx.openai.azure.com/
-  "character_desc": "你是ChatGPT, 一个由OpenAI训练的大型语言模型, 你旨在回答并解决人们的任何问题，并且可以使用多种语言与人交流。",  # 人格描述,
-}
+回复`Reply`的定义如下所示，它允许Bot可以回复多类不同的消息。同时也加入了`INFO`和`ERROR`消息类型区分系统提示和系统错误。
+    
+```python
+    class ReplyType(Enum):
+        TEXT = 1        # 文本
+        VOICE = 2       # 音频文件
+        IMAGE = 3       # 图片文件
+        IMAGE_URL = 4   # 图片URL
+        
+        INFO = 9
+        ERROR = 10
+    class Reply:
+        def __init__(self, type : ReplyType = None , content = None):
+            self.type = type
+            self.content = content
 ```
-**配置说明：**
 
-**1.个人聊天**
+#### 3. 装饰回复
 
-+ 个人聊天中，需要以 "bot"或"@bot" 为开头的内容触发机器人，对应配置项 `single_chat_prefix` (如果不需要以前缀触发可以填写  `"single_chat_prefix": [""]`)
-+ 机器人回复的内容会以 "[bot] " 作为前缀， 以区分真人，对应的配置项为 `single_chat_reply_prefix` (如果不需要前缀可以填写 `"single_chat_reply_prefix": ""`)
+根据`Context`和回复`Reply`的类型，对回复的内容进行装饰。目前的装饰有以下两种:
 
-**2.群组聊天**
+- `TEXT`文本回复:如果这次消息需要的回复是`VOICE`，进行文字转语音回复之后再次装饰。 否则根据是否在群聊中来决定是艾特接收方还是添加回复的前缀。
 
-+ 群组聊天中，群名称需配置在 `group_name_white_list ` 中才能开启群聊自动回复。如果想对所有群聊生效，可以直接填写 `"group_name_white_list": ["ALL_GROUP"]`
-+ 默认只要被人 @ 就会触发机器人自动回复；另外群聊天中只要检测到以 "@bot" 开头的内容，同样会自动回复（方便自己触发），这对应配置项 `group_chat_prefix`
-+ 可选配置: `group_name_keyword_white_list`配置项支持模糊匹配群名称，`group_chat_keyword`配置项则支持模糊匹配群消息内容，用法与上述两个配置项相同。（Contributed by [evolay](https://github.com/evolay))
-+ `group_chat_in_one_session`：使群聊共享一个会话上下文，配置 `["ALL_GROUP"]` 则作用于所有群聊
+- `INFO`或`ERROR`类型，会在消息前添加对应的系统提示字样。
 
-**3.语音识别**
+如下是默认逻辑的代码：
 
-+ 添加 `"speech_recognition": true` 将开启语音识别，默认使用openai的whisper模型识别为文字，同时以文字回复，该参数仅支持私聊 (注意由于语音消息无法匹配前缀，一旦开启将对所有语音自动回复，支持语音触发画图)；
-+ 添加 `"group_speech_recognition": true` 将开启群组语音识别，默认使用openai的whisper模型识别为文字，同时以文字回复，参数仅支持群聊 (会匹配group_chat_prefix和group_chat_keyword, 支持语音触发画图)；
-+ 添加 `"voice_reply_voice": true` 将开启语音回复语音（同时作用于私聊和群聊），但是需要配置对应语音合成平台的key，由于itchat协议的限制，只能发送语音mp3文件，若使用wechaty则回复的是微信语音。
-
-**4.其他配置**
-
-+ `model`: 模型名称，目前支持 `gpt-3.5-turbo`, `text-davinci-003`, `gpt-4`, `gpt-4-32k`  (其中gpt-4 api暂未开放)
-+ `temperature`,`frequency_penalty`,`presence_penalty`: Chat API接口参数，详情参考[OpenAI官方文档。](https://platform.openai.com/docs/api-reference/chat) 
-+ `proxy`：由于目前 `openai` 接口国内无法访问，需配置代理客户端的地址，详情参考  [#351](https://github.com/zhayujie/chatgpt-on-wechat/issues/351)
-+ 对于图像生成，在满足个人或群组触发条件外，还需要额外的关键词前缀来触发，对应配置 `image_create_prefix `
-+ 关于OpenAI对话及图片接口的参数配置（内容自由度、回复字数限制、图片大小等），可以参考 [对话接口](https://beta.openai.com/docs/api-reference/completions) 和 [图像接口](https://beta.openai.com/docs/api-reference/completions)  文档直接在 [代码](https://github.com/zhayujie/chatgpt-on-wechat/blob/master/bot/openai/open_ai_bot.py) `bot/openai/open_ai_bot.py` 中进行调整。
-+ `conversation_max_tokens`：表示能够记忆的上下文最大字数（一问一答为一组对话，如果累积的对话字数超出限制，就会优先移除最早的一组对话）
-+ `rate_limit_chatgpt`，`rate_limit_dalle`：每分钟最高问答速率、画图速率，超速后排队按序处理。
-+ `clear_memory_commands`: 对话内指令，主动清空前文记忆，字符串数组可自定义指令别名。
-+ `hot_reload`: 程序退出后，暂存微信扫码状态，默认关闭。
-+ `character_desc` 配置中保存着你对机器人说的一段话，他会记住这段话并作为他的设定，你可以为他定制任何人格      (关于会话上下文的更多内容参考该 [issue](https://github.com/zhayujie/chatgpt-on-wechat/issues/43))
-
-**所有可选的配置项均在该[文件](https://github.com/zhayujie/chatgpt-on-wechat/blob/master/config.py)中列出。**
-
-## 运行
-
-### 1.本地运行
-
-如果是开发机 **本地运行**，直接在项目根目录下执行：
-
-```bash
-python3 app.py
+```python
+    if reply.type == ReplyType.TEXT:
+        reply_text = reply.content
+        if context.get('desire_rtype') == ReplyType.VOICE:
+            reply = super().build_text_to_voice(reply.content)
+            return self._decorate_reply(context, reply)
+        if context['isgroup']:
+            reply_text = '@' +  context['msg'].actual_user_nickname + ' ' + reply_text.strip()
+            reply_text = conf().get("group_chat_reply_prefix", "")+reply_text
+        else:
+            reply_text = conf().get("single_chat_reply_prefix", "")+reply_text
+        reply.content = reply_text
+    elif reply.type == ReplyType.ERROR or reply.type == ReplyType.INFO:
+        reply.content = str(reply.type)+":\n" + reply.content
 ```
-终端输出二维码后，使用微信进行扫码，当输出 "Start auto replying" 时表示自动回复程序已经成功运行了（注意：用于登录的微信需要在支付处已完成实名认证）。扫码登录后你的账号就成为机器人了，可以在微信手机端通过配置的关键词触发自动回复 (任意好友发送消息给你，或是自己发消息给好友)，参考[#142](https://github.com/zhayujie/chatgpt-on-wechat/issues/142)。 
 
+#### 4. 发送回复
 
-### 2.服务器部署
+根据`Reply`的类型，默认逻辑调用不同的发送函数发送回复给接收方`context["receiver"]`。
 
-使用nohup命令在后台运行程序：
+### 插件触发事件
 
-```bash
-touch nohup.out                                   # 首次运行需要新建日志文件                     
-nohup python3 app.py & tail -f nohup.out          # 在后台运行程序并通过日志输出二维码
+主程序目前会在各个消息步骤间触发事件，监听相应事件的插件会按照优先级，顺序调用事件处理函数。
+
+目前支持三类触发事件：
 ```
-扫码登录后程序即可运行于服务器后台，此时可通过 `ctrl+c` 关闭日志，不会影响后台程序的运行。使用 `ps -ef | grep app.py | grep -v grep` 命令可查看运行于后台的进程，如果想要重新启动程序可以先 `kill` 掉对应的进程。日志关闭后如果想要再次打开只需输入 `tail -f nohup.out`。此外，`scripts` 目录下有一键运行、关闭程序的脚本供使用。
+1.收到消息 
+---> `ON_HANDLE_CONTEXT` 
+2.产生回复 
+---> `ON_DECORATE_REPLY` 
+3.装饰回复 
+---> `ON_SEND_REPLY` 
+4.发送回复
+```
 
-> **注意：** 如果 扫码后手机提示登录验证需要等待5s，而终端的二维码再次刷新并提示 `Log in time out, reloading QR code`，此时需参考此 [issue](https://github.com/zhayujie/chatgpt-on-wechat/issues/8) 修改一行代码即可解决。
+触发事件会产生事件的上下文`EventContext`，它包含了以下信息:
 
-> **多账号支持：** 将 项目复制多份，分别启动程序，用不同账号扫码登录即可实现同时运行。
+`EventContext(Event事件类型, {'channel' : 消息channel, 'context': Context, 'reply': Reply})`
 
-> **特殊指令：** 用户向机器人发送 **#清除记忆** 即可清空该用户的上下文记忆。
+插件处理函数可通过修改`EventContext`中的`context`和`reply`来实现功能。
 
+## 插件编写示例
 
-### 3.Docker部署
+以`plugins/hello`为例，其中编写了一个简单的`Hello`插件。
 
-参考文档 [Docker部署](https://github.com/limccn/chatgpt-on-wechat/wiki/Docker%E9%83%A8%E7%BD%B2)   (Contributed by [limccn](https://github.com/limccn))。
+### 1. 创建插件
 
-### 4. Railway部署(✅推荐)
-> Railway每月提供5刀和最多500小时的免费额度。
-1. 进入 [Railway](https://railway.app/template/qApznZ?referralCode=RC3znh)。
-2. 点击 `Deploy Now` 按钮。
-3. 设置环境变量来重载程序运行的参数，例如`open_ai_api_key`, `character_desc`。
+在`plugins`目录下创建一个插件文件夹`hello`。然后，在该文件夹中创建一个与文件夹同名的`.py`文件`hello.py`。
+```
+plugins/
+└── hello
+    ├── __init__.py
+    └── hello.py
+```
 
-## 常见问题
+### 2. 编写插件类
 
-FAQs： <https://github.com/zhayujie/chatgpt-on-wechat/wiki/FAQs>
+在`hello.py`文件中，创建插件类，它继承自`Plugin`。
 
+在类定义之前需要使用`@plugins.register`装饰器注册插件，并填写插件的相关信息，其中`desire_priority`表示插件默认的优先级，越大优先级越高。初次加载插件后可在`plugins/plugins.json`中修改插件优先级。
 
-## 联系
+并在`__init__`中绑定你编写的事件处理函数。
 
-欢迎提交PR、Issues，以及Star支持一下。程序运行遇到问题优先查看 [常见问题列表](https://github.com/zhayujie/chatgpt-on-wechat/wiki/FAQs) ，其次前往 [Issues](https://github.com/zhayujie/chatgpt-on-wechat/issues) 中搜索，若无相似问题可创建Issue，或加微信 eijuyahz 交流。
+`Hello`插件为事件`ON_HANDLE_CONTEXT`绑定了一个处理函数`on_handle_context`，它表示之后每次生成回复前，都会由`on_handle_context`先处理。
 
- 
+PS: `ON_HANDLE_CONTEXT`是最常用的事件，如果要根据不同的消息来生成回复，就用它。
+
+```python
+@plugins.register(name="Hello", desc="A simple plugin that says hello", version="0.1", author="lanvent", desire_priority= -1)
+class Hello(Plugin):
+    def __init__(self):
+        super().__init__()
+        self.handlers[Event.ON_HANDLE_CONTEXT] = self.on_handle_context
+        logger.info("[Hello] inited")
+```
+
+### 3. 编写事件处理函数
+
+#### 修改事件上下文
+
+事件处理函数接收一个`EventContext`对象`e_context`作为参数。`e_context`包含了事件相关信息，利用`e_context['key']`来访问这些信息。
+
+`EventContext(Event事件类型, {'channel' : 消息channel, 'context': Context, 'reply': Reply})`
+
+处理函数中通过修改`e_context`对象中的事件相关信息来实现所需功能，比如更改`e_context['reply']`中的内容可以修改回复。
+
+#### 决定是否交付给下个插件或默认逻辑
+
+在处理函数结束时，还需要设置`e_context`对象的`action`属性，它决定如何继续处理事件。目前有以下三种处理方式：
+
+- `EventAction.CONTINUE`: 事件未结束，继续交给下个插件处理，如果没有下个插件，则交付给默认的事件处理逻辑。
+- `EventAction.BREAK`: 事件结束，不再给下个插件处理，交付给默认的处理逻辑。
+- `EventAction.BREAK_PASS`: 事件结束，不再给下个插件处理，跳过默认的处理逻辑。
+
+#### 示例处理函数
+
+`Hello`插件处理`Context`类型为`TEXT`的消息：
+
+- 如果内容是`Hello`，就将回复设置为`Hello+用户昵称`，并跳过之后的插件和默认逻辑。
+- 如果内容是`End`，就将`Context`的类型更改为`IMAGE_CREATE`，并让事件继续，如果最终交付到默认逻辑，会调用默认的画图Bot来画画。
+
+```python
+    def on_handle_context(self, e_context: EventContext):
+        if e_context['context'].type != ContextType.TEXT:
+            return
+        content = e_context['context'].content
+        if content == "Hello":
+            reply = Reply()
+            reply.type = ReplyType.TEXT
+            msg:ChatMessage = e_context['context']['msg']
+            if e_context['context']['isgroup']:
+                reply.content = f"Hello, {msg.actual_user_nickname} from {msg.from_user_nickname}"
+            else:
+                reply.content = f"Hello, {msg.from_user_nickname}"
+            e_context['reply'] = reply
+            e_context.action = EventAction.BREAK_PASS # 事件结束，并跳过处理context的默认逻辑
+        if content == "End":
+            # 如果是文本消息"End"，将请求转换成"IMAGE_CREATE"，并将content设置为"The World"
+            e_context['context'].type = ContextType.IMAGE_CREATE
+            content = "The World"
+            e_context.action = EventAction.CONTINUE  # 事件继续，交付给下个插件或默认逻辑
+```
+
+## 插件设计建议
+
+- 尽情将你想要的个性化功能设计为插件。
+- 一个插件目录建议只注册一个插件类。建议使用单独的仓库维护插件，便于更新。
+- 插件的config文件、使用说明`README.md`、`requirement.txt`等放置在插件目录中。
+- 默认优先级不要超过管理员插件`Godcmd`的优先级(999)，`Godcmd`插件提供了配置管理、插件管理等功能。
