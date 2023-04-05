@@ -5,7 +5,7 @@
       "bing_subscription_key": "076778749ee34fa8b1e0ecc2e273884a",
       "wolfram_alpha_appid": "48Q723-W6L8WEJJ5X"
       "top_k_results": 2,
-      "no_default": false,
+      "no_default": true,
       "model_name": "gpt-3.5-turbo"
   }
 }
