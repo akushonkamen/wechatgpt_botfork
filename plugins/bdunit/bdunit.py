@@ -20,28 +20,24 @@ from uuid import getnode as get_mac
 class BDunit(Plugin):
     def __init__(self):
         super().__init__()
-        #try:
-        print('logging in BDUNIT')
-        curdir = os.path.dirname(__file__)
-           # config_path = os.path.join(curdir, "config.json")
-           # conf = None
-           # if not os.path.exists(config_path):
-           #     raise Exception("config.json not found")
-           # else:
-           #     with open(config_path, "r") as f:
-           #         conf = json.load(f)
-      #  "service_id": "S86061",
-      #  "api_key": "bDk5iyz8XAc2dtUZd0sbH9sR",
-      #  "secret_key": "RL1QPc3DoObYT1zvFWlIycy8qcZefeoh"    
-        self.service_id = "S86061" #conf["service_id"]
-        self.api_key = "RL1QPc3DoObYT1zvFWlIycy8qcZefeoh"  #conf["api_key"]
-        self.secret_key = "bDk5iyz8XAc2dtUZd0sbH9sR" #conf["secret_key"]
-        self.access_token = self.get_token()
-        self.handlers[Event.ON_HANDLE_CONTEXT] = self.on_handle_context
-        logger.info("[BDunit] inited")
-        #except Exception as e:
-        #    logger.warn(
-        #        "BDunit init failed: %s, ignore " % e)
+        try:
+            curdir = os.path.dirname(__file__)
+            config_path = os.path.join(curdir, "config.json")
+            conf = None
+            if not os.path.exists(config_path):
+                raise Exception("config.json not found")
+            else:
+                with open(config_path, "r") as f:
+                    conf = json.load(f)
+            self.service_id = conf["service_id"]
+            self.api_key = conf["api_key"]
+            self.secret_key = conf["secret_key"]
+            self.access_token = self.get_token()
+            self.handlers[Event.ON_HANDLE_CONTEXT] = self.on_handle_context
+            logger.info("[BDunit] inited")
+        except Exception as e:
+            logger.warn(
+                "BDunit init failed: %s, ignore " % e)
 
     def on_handle_context(self, e_context: EventContext):
 
