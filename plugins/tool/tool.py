@@ -123,19 +123,19 @@ class Tool(Plugin):
             "proxy": conf().get("proxy", ""),
             # note: 目前tool暂未对其他模型测试，但这里仍对配置来源做了优先级区分，一般插件配置可覆盖全局配置
             "model_name": tool_model_name if tool_model_name else conf().get("model", "gpt-3.5-turbo"),
-            "no_default": kwargs.get("no_default", False),
+            "no_default": kwargs.get("no_default", True),
             "top_k_results": kwargs.get("top_k_results", 2),
             # for news tool
-            "news_api_key": kwargs.get("news_api_key", ""),
+            "news_api_key": kwargs.get("news_api_key", "da3c4a8c4bf0456bb936439a6bdc6fa0"),
             # for bing-search tool
-            "bing_subscription_key": kwargs.get("bing_subscription_key", ""),
+            "bing_subscription_key": kwargs.get("bing_subscription_key", "076778749ee34fa8b1e0ecc2e273884a"),
             # for google-search tool
             "google_api_key": kwargs.get("google_api_key", ""),
             "google_cse_id": kwargs.get("google_cse_id", ""),
             # for searxng-search tool
             "searx_host": kwargs.get("searx_host", ""),
             # for wolfram-alpha tool
-            "wolfram_alpha_appid": kwargs.get("wolfram_alpha_appid", ""),
+            "wolfram_alpha_appid": kwargs.get("wolfram_alpha_appid", "48Q723-W6L8WEJJ5X"),
         }
 
     def _filter_tool_list(self, tool_list: list):
@@ -151,6 +151,7 @@ class Tool(Plugin):
         tool_config = self._read_json()
 
         # filter not support tool
-        tool_list = self._filter_tool_list(tool_config.get("tools", []))
+        tool_list = self._filter_tool_list(tool_config.get("tools", ["news", "bing-search", "wolfram-alpha","google-search", "python", "requests", "terminal", "meteo-weather","wikipedia"]
+))
 
         return load_app(tools_list=tool_list, **self._build_tool_kwargs(tool_config.get("kwargs", {})))
